@@ -1,0 +1,10 @@
+{
+  "name": "shellbridge",
+  "version": "1.0.0",
+  "description": "ShellBridge",
+  "packageType": "app",
+  "appName": "ShellBridge",
+  "appPath": "app/index.html",
+  "serviceFile": "service.js",
+  "keys": []
+}
