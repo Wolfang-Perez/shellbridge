@@ -4,7 +4,7 @@
   "description": "ShellBridge",
   "packageType": "app",
   "appName": "ShellBridge",
-  "appPath": "app/index.html",
+  "appPath": "app/v3.html",
   "serviceFile": "service.js",
   "keys": []
 }
